@@ -33,6 +33,7 @@ services:
     build:
       context: ../Synapse-Worker
       dockerfile: Dockerfile.dev
+    command: celery -A src.worker.app worker -l info -Q cpu_light,cpu_heavy,celery
     volumes:
       - ../Synapse-Worker/src:/code/src
     env_file:
@@ -45,6 +46,7 @@ services:
     build:
       context: ../Synapse-Worker
       dockerfile: Dockerfile.gpu.dev
+    command: celery -A src.worker.app worker -l info -Q gpu
     volumes:
       - ../Synapse-Worker/src:/code/src
     env_file:
