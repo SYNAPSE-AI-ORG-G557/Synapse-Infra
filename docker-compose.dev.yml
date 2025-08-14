@@ -25,6 +25,9 @@ services:
       - "8000:8000"
     env_file:
       - ./.env
+    environment:  # ADD THIS SECTION
+      - REDIS_HOST=redis  # Use service name
+      - REDIS_PORT=6379
     depends_on:
       - redis
       - postgres
@@ -38,6 +41,9 @@ services:
       - ../Synapse-Worker/src:/code/src
     env_file:
       - ./.env
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     depends_on:
       - redis
       - postgres
@@ -51,6 +57,9 @@ services:
       - ../Synapse-Worker/src:/code/src
     env_file:
       - ./.env
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     runtime: nvidia
     deploy:
       resources:
