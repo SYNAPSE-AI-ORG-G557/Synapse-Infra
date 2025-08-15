@@ -1,3 +1,4 @@
+# Synapse-Infra/docker-compose.dev.yml (Corrected for Full Sync)
 version: "3.9"
 
 services:
@@ -19,15 +20,15 @@ services:
       context: ../Synapse-Backend
       dockerfile: Dockerfile.dev
     volumes:
-      - ../Synapse-Backend/app:/code/app
-      - ../Synapse-Backend/src:/code/src
+      # Sync full backend folder for live changes (including alembic files)
+      - ../Synapse-Backend:/code
     ports:
       - "8000:8000"
     env_file:
       - ./.env
     depends_on:
       postgres:
-        condition: service_healthy  # Add healthcheck dependency
+        condition: service_healthy
       redis:
         condition: service_started
 
@@ -37,13 +38,13 @@ services:
       dockerfile: Dockerfile.dev
     command: celery -A src.worker.app worker -l info -Q cpu_light,cpu_heavy,celery
     volumes:
-      - ../Synapse-Worker/src:/code/src
+      - ../Synapse-Worker:/code
     env_file:
       - ./.env
-    user: "1000:1000"  # Run as non-root user
+    user: "1000:1000"
     depends_on:
       postgres:
-        condition: service_healthy  # Add healthcheck dependency
+        condition: service_healthy
       redis:
         condition: service_started
 
@@ -53,14 +54,14 @@ services:
       dockerfile: Dockerfile.gpu.dev
     command: celery -A src.worker.app worker -l info -Q gpu
     volumes:
-      - ../Synapse-Worker/src:/code/src
+      - ../Synapse-Worker:/code
     env_file:
       - ./.env
     runtime: nvidia
-    user: "1000:1000"  # Run as non-root user
+    user: "1000:1000"
     depends_on:
       postgres:
-        condition: service_healthy  # Add healthcheck dependency
+        condition: service_healthy
       redis:
         condition: service_started
 
@@ -70,20 +71,20 @@ services:
       - "6379:6379"
 
   postgres:
-    image: postgres:13
+    image: pgvector/pgvector:pg13
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}  # Ensure this matches .env
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
       - pgdata_dev:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]  # Fixed variable syntax
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
-      retries: 10  # Increase retries
+      retries: 10
 
 volumes:
-  pgdata_dev:
+  pgdata_dev: {}
