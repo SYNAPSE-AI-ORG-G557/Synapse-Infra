@@ -1,1 +1,4 @@
 .env 
+hf_cache/
+docker/
+*.code-workspace
