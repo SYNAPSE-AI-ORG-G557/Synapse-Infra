@@ -1,7 +1,6 @@
 version: "3.9"
 
 services:
-  # -------------------- FRONTEND --------------------
   frontend:
     build:
       context: ../Synapse-Frontend
@@ -15,7 +14,6 @@ services:
     environment:
       - CHOKIDAR_USEPOLLING=true
 
-  # -------------------- BACKEND --------------------
   backend:
     build:
       context: ../Synapse-Backend
@@ -27,102 +25,96 @@ services:
     env_file:
       - ./.env
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
-      qdrant:
-        condition: service_started
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+      qdrant: { condition: service_started }
     environment:
       - TRANSFORMERS_CACHE=/hf_cache
       - HF_HOME=/hf_cache
+      - LOG_MODE=console
 
-  # 🔹 NEW: Flower Monitoring Dashboard 🔹
   flower:
     build:
-      context: ../Synapse-Worker
-      dockerfile: Dockerfile.dev
+      context: ../Synapse-Worker  # Correct build context
+      dockerfile: Dockerfile.worker # Unified Dockerfile
+      target: flower-final          # Specific build stage for flower
     container_name: synapse-flower
     command: celery -A src.worker.app flower --address=0.0.0.0 --port=5555
     ports:
-      # Access the dashboard at http://localhost:5556
       - "5556:5555"
     env_file:
       - ./.env
     depends_on:
-      redis:
-        condition: service_started
+      - redis
 
-  # 🔹 REFACTORED: Worker for light, fast tasks 🔹
-  
   worker-cpu:
     build:
-      context: ../Synapse-Worker
-      dockerfile: Dockerfile.dev
+      context: ../Synapse-Worker   # Correct build context
+      dockerfile: Dockerfile.worker  # Unified Dockerfile
+      target: worker-cpu-final       # Specific build stage for CPU
     container_name: synapse-worker-cpu
-    # This single worker listens to both queues, separated by a comma
-    command: sh -c "celery -A src.worker.app worker -l info -Q cpu_light,cpu_heavy -c 1"
+    command: celery -A src.worker.app worker -l info -Q cpu_light,cpu_heavy -c 1
     volumes:
-      - ../Synapse-Worker:/code
-      - ./hf_cache:/hf_cache
+      - ../Synapse-Worker:/code # Mount source code for development
+      - ./hf_cache:/hf_cache   # Persist downloaded models
     env_file:
       - ./.env
     user: "1000:1000"
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
-      qdrant:
-        condition: service_started
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+      qdrant: { condition: service_started }
     environment:
       - TRANSFORMERS_CACHE=/hf_cache
       - HF_HOME=/hf_cache
       - PYTHONPATH=/code
       - GIT_PYTHON_REFRESH=quiet
       - NLTK_DATA=/code/nltk_data
-  # 🔹 CONFIRMED: This worker is correctly configured for the 'gpu' queue.
-  # Uncomment this block when you have a GPU environment.
-  # worker-gpu:
-  #   build:
-  #     context: ../Synapse-Worker
-  #     dockerfile: Dockerfile.gpu.dev
-  #   command: sh -c "mkdir -p /hf_cache && celery -A src.worker.app worker -l info -Q gpu"
-  #   volumes:
-  #     - ../Synapse-Worker:/code
-  #     - worker_cache:/code/.cache
-  #     - hf_cache:/hf_cache
-  #   env_file:
-  #     - ./.env
-  #   runtime: nvidia
-  #   user: "1000:1000"
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #     redis:
-  #       condition: service_started
-  #     qdrant:
-  #       condition: service_started
-  #   environment:
-  #     - TRANSFORMERS_CACHE=/hf_cache
-  #     - HF_HOME=/hf_cache
-  #     - PYTHONPATH=/code
+      - LOG_MODE=console
+      - WORKER_TYPE=cpu
 
-  # -------------------- REDIS --------------------
+  worker-gpu:
+    build:
+      context: ../Synapse-Worker   # Correct build context
+      dockerfile: Dockerfile.worker  # Unified Dockerfile
+      target: worker-gpu-final       # Specific build stage for GPU
+    command: ["sh", "-c", "celery -A src.worker.app worker -Q gpu --pool=solo -n gpu-worker@%h"]
+    volumes:
+      - ../Synapse-Worker:/code # Mount source code for development
+      - ./hf_cache:/hf_cache   # Persist downloaded models
+    env_file:
+      - ./.env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    user: "1000:1000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+      qdrant: { condition: service_started }
+    environment:
+      - ML_DEVICE=cuda
+      - TRANSFORMERS_CACHE=/hf_cache
+      - HF_HOME=/hf_cache
+      - PYTHONPATH=/code
+      - LOG_MODE=console
+      - WORKER_TYPE=gpu
+
   redis:
     image: redis:latest
-    ports:
-      - "6379:6379"
+    ports: ["6379:6379"]
 
-  # -------------------- POSTGRES --------------------
   postgres:
     image: pgvector/pgvector:pg13
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5432:5432"
+    ports: ["5433:5432"]
     volumes:
       - pgdata_dev:/var/lib/postgresql/data
     healthcheck:
@@ -131,7 +123,6 @@ services:
       timeout: 5s
       retries: 10
 
-  # -------------------- QDRANT VECTOR DATABASE --------------------
   qdrant:
     image: qdrant/qdrant:latest
     container_name: synapse-qdrant
@@ -141,7 +132,7 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
 
-# -------------------- NAMED VOLUMES --------------------
 volumes:
   pgdata_dev: {}
   qdrant_data: {}
+  hf_cache: {}
