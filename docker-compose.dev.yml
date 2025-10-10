@@ -22,6 +22,10 @@ services:
       dockerfile: Dockerfile.dev
     volumes:
       - ../Synapse-Backend:/code
+      - ../Synapse-MCP/mcp-chatbot:/app/mcp-chatbot
+      - ../Synapse-MCP/mcp-chatbot/servers_config.json:/app/servers_config.json
+      - ../Synapse-MCP/mcp-chatbot/test.db:/app/test.db
+      - ./images:/app/images
     ports:
       - "8000:8000"
     env_file:
@@ -36,6 +40,9 @@ services:
     environment:
       - TRANSFORMERS_CACHE=/hf_cache
       - HF_HOME=/hf_cache
+      - GROQ_API_KEY=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
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - NOTION_TOKEN=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
 
   # 🔹 NEW: Flower Monitoring Dashboard 🔹
   flower:
@@ -54,7 +61,7 @@ services:
         condition: service_started
 
   # 🔹 REFACTORED: Worker for light, fast tasks 🔹
-  
+
   worker-cpu:
     build:
       context: ../Synapse-Worker
@@ -65,6 +72,10 @@ services:
     volumes:
       - ../Synapse-Worker:/code
       - ./hf_cache:/hf_cache
+      - ../Synapse-MCP/mcp-chatbot:/app/mcp-chatbot
+      - ../Synapse-MCP/mcp-chatbot/servers_config.json:/app/servers_config.json
+      - ../Synapse-MCP/mcp-chatbot/test.db:/app/test.db
+      - ./images:/app/images
     env_file:
       - ./.env
     user: "1000:1000"
@@ -81,6 +92,9 @@ services:
       - PYTHONPATH=/code
       - GIT_PYTHON_REFRESH=quiet
       - NLTK_DATA=/code/nltk_data
+      - GROQ_API_KEY=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
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - NOTION_TOKEN=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
   # 🔹 CONFIRMED: This worker is correctly configured for the 'gpu' queue.
   # Uncomment this block when you have a GPU environment.
   # worker-gpu:
@@ -126,7 +140,7 @@ services:
     volumes:
       - pgdata_dev:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}" ]
       interval: 5s
       timeout: 5s
       retries: 10
