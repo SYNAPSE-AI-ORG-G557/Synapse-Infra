@@ -1,0 +1,144 @@
+version: "3.9"
+
+services:
+  frontend:
+    build:
+      context: ../Synapse-Frontend
+      dockerfile: Dockerfile.dev
+    command: npm run dev
+    volumes:
+      - ../Synapse-Frontend:/app
+      - /app/node_modules
+    ports:
+      - "4173:4173"
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+
+  backend:
+    build:
+      context: ../Synapse-Backend
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ../Synapse-Backend:/code
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./.env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+      qdrant: { condition: service_started }
+    environment:
+      - TRANSFORMERS_CACHE=/hf_cache
+      - HF_HOME=/hf_cache
+      - LOG_MODE=console
+
+  flower:
+    build:
+      context: ../Synapse-Worker  # Correct build context
+      dockerfile: Dockerfile.worker # Unified Dockerfile
+      target: flower-final          # Specific build stage for flower
+    container_name: synapse-flower
+    command: celery -A src.worker.app flower --address=0.0.0.0 --port=5555
+    ports:
+      - "5556:5555"
+    env_file:
+      - ./.env
+    depends_on:
+      - redis
+
+  worker-cpu:
+    build:
+      context: ../Synapse-Worker   # Correct build context
+      dockerfile: Dockerfile.worker  # Unified Dockerfile
+      target: worker-cpu-final       # Specific build stage for CPU
+    container_name: synapse-worker-cpu
+    command: celery -A src.worker.app worker -l info -Q cpu_light,cpu_heavy -c 1
+    volumes:
+      - ../Synapse-Worker:/code # Mount source code for development
+      - ./hf_cache:/hf_cache   # Persist downloaded models
+    env_file:
+      - ./.env
+    user: "1000:1000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+      qdrant: { condition: service_started }
+    environment:
+      - TRANSFORMERS_CACHE=/hf_cache
+      - HF_HOME=/hf_cache
+      - PYTHONPATH=/code
+      - GIT_PYTHON_REFRESH=quiet
+      - NLTK_DATA=/code/nltk_data
+      - LOG_MODE=console
+      - WORKER_TYPE=cpu
+    # 💡 SOLUTION: Map host.docker.internal to host-gateway
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  worker-gpu:
+    build:
+      context: ../Synapse-Worker   # Correct build context
+      dockerfile: Dockerfile.worker  # Unified Dockerfile
+      target: worker-gpu-final       # Specific build stage for GPU
+    command: ["sh", "-c", "celery -A src.worker.app worker -Q gpu --pool=solo -n gpu-worker@%h"]
+    volumes:
+      - ../Synapse-Worker:/code # Mount source code for development
+      - ./hf_cache:/hf_cache   # Persist downloaded models
+    env_file:
+      - ./.env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    user: "1000:1000"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+      qdrant: { condition: service_started }
+    environment:
+      - ML_DEVICE=cuda
+      - TRANSFORMERS_CACHE=/hf_cache
+      - HF_HOME=/hf_cache
+      - PYTHONPATH=/code
+      - LOG_MODE=console
+      - WORKER_TYPE=gpu
+    # 💡 SOLUTION: Map host.docker.internal to host-gateway
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  redis:
+    image: redis:latest
+    ports: ["6379:6379"]
+
+  postgres:
+    image: pgvector/pgvector:pg13
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports: ["5433:5432"]
+    volumes:
+      - pgdata_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: synapse-qdrant
+    ports:
+      - "6333:6333" # REST API
+      - "6334:6334" # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+volumes:
+  pgdata_dev: {}
+  qdrant_data: {}
+  hf_cache: {}

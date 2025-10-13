@@ -4,10 +4,10 @@ API_V1_STR="/api/v1"
 
 # --- DATABASE & SERVICES ---
 # Postgres - Use service names in Docker
-POSTGRES_USER=youruser
-POSTGRES_PASSWORD=yourpassword
+POSTGRES_USER=synapse_user
+POSTGRES_PASSWORD=synapse_password
 POSTGRES_SERVER=postgres
-POSTGRES_DB=yourdb
+POSTGRES_DB=synapse_db
 
 # Redis - Use service names in Docker
 REDIS_HOST=redis

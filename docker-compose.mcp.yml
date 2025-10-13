@@ -1,0 +1,181 @@
+version: '3.8'
+
+services:
+  # MCP Gateway Service
+  mcp-gateway:
+    build:
+      context: ../Synapse-Worker
+      dockerfile: Dockerfile.mcp
+    container_name: mcp-gateway
+    ports:
+      - "8020:8020"
+    environment:
+      - PYTHONPATH=/app/src
+    depends_on:
+      - weather_server
+      - browser_server
+      - web_search_server
+      - gmail_server
+      - google_calendar_server
+      - reminder_server
+      - file_access_server
+      - shell_server
+    networks:
+      - synapse-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8020/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Existing services (unchanged)
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_DB: synapse_db
+      POSTGRES_USER: synapse_user
+      POSTGRES_PASSWORD: synapse_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./configs/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    networks:
+      - synapse-network
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - redis_data:/data
+      - ./configs/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    networks:
+      - synapse-network
+    restart: unless-stopped
+
+  # Tooling Engine Services
+  orchestrator:
+    build:
+      context: ../Tooling_Engine
+      dockerfile: Dockerfile.main
+    container_name: orchestrator
+    ports:
+      - "8010:8010"
+    environment:
+      - PYTHONPATH=/app
+    networks:
+      - synapse-network
+    restart: unless-stopped
+
+  weather_server:
+    build:
+      context: ../Tooling_Engine
+      dockerfile: Dockerfile.tools
+    container_name: weather_server
+    ports:
+      - "8006:8006"
+    environment:
+      - WEATHER_API_KEY=${WEATHER_API_KEY}
+    networks:
+      - synapse-network
+    restart: unless-stopped
+
+  browser_server:
+    build:
+      context: ../Tooling_Engine
+      dockerfile: Dockerfile.tools
+    container_name: browser_server
+    ports:
+      - "8005:8005"
+    networks:
+      - synapse-network
+    restart: unless-stopped
+
+  web_search_server:
+    build:
+      context: ../Tooling_Engine
+      dockerfile: Dockerfile.tools
+    container_name: web_search_server
+    ports:
+      - "8007:8007"
+    environment:
+      - SERPAPI_API_KEY=${SERPAPI_API_KEY}
+    networks:
+      - synapse-network
+    restart: unless-stopped
+
+  gmail_server:
+    build:
+      context: ../Tooling_Engine
+      dockerfile: Dockerfile.tools
+    container_name: gmail_server
+    ports:
+      - "8008:8008"
+    environment:
+      - GMAIL_CREDENTIALS=${GMAIL_CREDENTIALS}
+    networks:
+      - synapse-network
+    restart: unless-stopped
+
+  google_calendar_server:
+    build:
+      context: ../Tooling_Engine
+      dockerfile: Dockerfile.tools
+    container_name: google_calendar_server
+    ports:
+      - "8009:8009"
+    environment:
+      - GOOGLE_CALENDAR_CREDENTIALS=${GOOGLE_CALENDAR_CREDENTIALS}
+    networks:
+      - synapse-network
+    restart: unless-stopped
+
+  reminder_server:
+    build:
+      context: ../Tooling_Engine
+      dockerfile: Dockerfile.tools
+    container_name: reminder_server
+    ports:
+      - "8011:8011"
+    networks:
+      - synapse-network
+    restart: unless-stopped
+
+  file_access_server:
+    build:
+      context: ../Tooling_Engine
+      dockerfile: Dockerfile.tools
+    container_name: file_access_server
+    ports:
+      - "8012:8012"
+    volumes:
+      - ../Tooling_Engine/sandboxed_files:/app/sandboxed_files
+    networks:
+      - synapse-network
+    restart: unless-stopped
+
+  shell_server:
+    build:
+      context: ../Tooling_Engine
+      dockerfile: Dockerfile.tools
+    container_name: shell_server
+    ports:
+      - "8013:8013"
+    networks:
+      - synapse-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  synapse-network:
+    driver: bridge
