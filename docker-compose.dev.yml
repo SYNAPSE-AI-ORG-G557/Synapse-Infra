@@ -94,6 +94,12 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-synapse_password}
       - POSTGRES_SERVER=${POSTGRES_SERVER:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-synapse_db}
+      # Database Connection Pooling
+      - DB_POOL_SIZE=${DB_POOL_SIZE:-5}
+      - DB_MAX_OVERFLOW=${DB_MAX_OVERFLOW:-10}
+      - DB_POOL_TIMEOUT=${DB_POOL_TIMEOUT:-30}
+      - DB_POOL_RECYCLE=${DB_POOL_RECYCLE:-1800}
+      - DB_POOL_PRE_PING=${DB_POOL_PRE_PING:-true}
       # Redis Configuration
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
@@ -151,6 +157,12 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-synapse_password}
       - POSTGRES_SERVER=${POSTGRES_SERVER:-postgres}
       - POSTGRES_DB=${POSTGRES_DB:-synapse_db}
+      # Database Connection Pooling (Smaller for workers)
+      - DB_POOL_SIZE=${DB_POOL_SIZE_WORKER:-3}
+      - DB_MAX_OVERFLOW=${DB_MAX_OVERFLOW_WORKER:-5}
+      - DB_POOL_TIMEOUT=${DB_POOL_TIMEOUT:-30}
+      - DB_POOL_RECYCLE=${DB_POOL_RECYCLE:-1800}
+      - DB_POOL_PRE_PING=${DB_POOL_PRE_PING:-true}
       # Redis Configuration
       - REDIS_HOST=${REDIS_HOST:-redis}
       - REDIS_PORT=${REDIS_PORT:-6379}
@@ -211,6 +223,17 @@ services:
       redis: { condition: service_started }
       qdrant: { condition: service_started }
     environment:
+      # Database Configuration
+      - POSTGRES_USER=${POSTGRES_USER:-synapse_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-synapse_password}
+      - POSTGRES_SERVER=${POSTGRES_SERVER:-postgres}
+      - POSTGRES_DB=${POSTGRES_DB:-synapse_db}
+      # Database Connection Pooling (Smaller for workers)
+      - DB_POOL_SIZE=${DB_POOL_SIZE_WORKER:-3}
+      - DB_MAX_OVERFLOW=${DB_MAX_OVERFLOW_WORKER:-5}
+      - DB_POOL_TIMEOUT=${DB_POOL_TIMEOUT:-30}
+      - DB_POOL_RECYCLE=${DB_POOL_RECYCLE:-1800}
+      - DB_POOL_PRE_PING=${DB_POOL_PRE_PING:-true}
       # Worker Configuration (override .env for GPU-specific settings)
       - ML_DEVICE=cuda
       - TRANSFORMERS_CACHE=/hf_cache
@@ -232,7 +255,7 @@ services:
       dockerfile: Dockerfile
       target: worker-cpu
     container_name: synapse-beat
-    command: celery -A src.worker beat --loglevel=INFO -S sqlalchemy_celery_beat.schedulers:DatabaseScheduler
+    command: celery -A src.worker beat --loglevel=INFO
     volumes:
       - ../Synapse-Worker:/app
     depends_on:
@@ -323,14 +346,54 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-synapse_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-synapse_password}
       POSTGRES_DB: ${POSTGRES_DB:-synapse_db}
+      # Connection limits and optimization
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
     ports: ["5433:5432"]
     volumes:
       - pgdata_dev:/var/lib/postgresql/data
+      - ./configs/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./configs/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    command: >
+      postgres
+      -c max_connections=200
+      -c shared_buffers=256MB
+      -c effective_cache_size=1GB
+      -c maintenance_work_mem=64MB
+      -c checkpoint_completion_target=0.9
+      -c wal_buffers=16MB
+      -c default_statistics_target=100
+      -c random_page_cost=1.1
+      -c effective_io_concurrency=200
+      -c work_mem=4MB
+      -c min_wal_size=1GB
+      -c max_wal_size=4GB
+      -c max_worker_processes=8
+      -c max_parallel_workers_per_gather=4
+      -c max_parallel_workers=8
+      -c max_parallel_maintenance_workers=4
+      -c log_statement=none
+      -c log_min_messages=error
+      -c log_min_duration_statement=-1
+      -c log_checkpoints=off
+      -c log_connections=off
+      -c log_disconnections=off
+      -c log_hostname=off
+      -c log_line_prefix=''
+      -c log_lock_waits=off
+      -c log_temp_files=-1
+      -c log_autovacuum_min_duration=-1
+      -c log_replication_commands=off
+      -c track_activities=on
+      -c track_counts=on
+      -c track_io_timing=on
+      -c track_functions=all
+      -c shared_preload_libraries=vector
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-synapse_user} -d ${POSTGRES_DB:-synapse_db}"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-synapse_user} -d ${POSTGRES_DB:-synapse_db} -q"]
+      interval: 30s
       timeout: 5s
-      retries: 10
+      retries: 3
+      start_period: 60s
     networks:
       - default
 
@@ -440,28 +503,24 @@ services:
   browser_server:
     build:
       context: ../Tooling_Engine
-      dockerfile: Dockerfile.vnc
-    environment:
-      - DISPLAY=:99
+      dockerfile: Dockerfile.prebuilt
+    command: uvicorn mcp_servers.browser_server:app --host 0.0.0.0 --port 8005
     ports:
       - "8005:8005"
-      - "6080:6080"  # noVNC web interface
     volumes:
       - ../Tooling_Engine/mcp_servers:/app/mcp_servers
     networks:
       - default
     restart: unless-stopped
-    shm_size: 2gb
 
   jarvis_automation_server:
     build:
-      context: ../Tooling_Engine
-      dockerfile: Dockerfile.optimized
-    command: uvicorn mcp_servers.jarvis_automation_server:app --host 0.0.0.0 --port 8012
+      context: ../Synapse-Worker
+      dockerfile: Dockerfile.automation
     ports:
       - "8012:8012"
     volumes:
-      - ../Tooling_Engine/mcp_servers:/app/mcp_servers
+      - ../Synapse-Worker/src:/app/src
     networks:
       - default
     restart: unless-stopped
