@@ -95,6 +95,12 @@ services:
       - GROQ_API_KEY=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
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - NOTION_TOKEN=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
+      - EMAIL_ADDRESS=${EMAIL_ADDRESS}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - IMAP_HOST=imap.gmail.com
+      - IMAP_PORT=993
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
   # 🔹 CONFIRMED: This worker is correctly configured for the 'gpu' queue.
   # Uncomment this block when you have a GPU environment.
   # worker-gpu:
@@ -130,7 +136,7 @@ services:
 
   # -------------------- POSTGRES --------------------
   postgres:
-    image: pgvector/pgvector:pg13
+    image: pgvector/pgvector:pg16
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
