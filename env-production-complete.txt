@@ -1,0 +1,89 @@
+# ===========================================
+# SYNAPSE INFRASTRUCTURE PRODUCTION ENVIRONMENT
+# ===========================================
+# Copy this file to .env for production deployment
+
+# ===========================================
+# DATABASE CONFIGURATION
+# ===========================================
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=your_secure_postgres_password_here
+POSTGRES_DB=synapse_db
+POSTGRES_SERVER=postgres
+
+# ===========================================
+# REDIS CONFIGURATION
+# ===========================================
+REDIS_HOST=redis
+REDIS_PORT=6379
+REDIS_DB=0
+
+# ===========================================
+# API KEYS (CRITICAL - Replace with your actual keys)
+# ===========================================
+GROQ_API_KEY=your_groq_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
+NOTION_TOKEN=your_notion_token_here
+
+# ===========================================
+# JWT CONFIGURATION (CRITICAL - Generate secure keys)
+# ===========================================
+JWT_SECRET_KEY=your_very_secure_jwt_secret_key_here_minimum_32_characters
+JWT_REFRESH_SECRET_KEY=your_very_secure_jwt_refresh_secret_key_here_minimum_32_characters
+ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# ===========================================
+# GOOGLE OAUTH2 CONFIGURATION
+# ===========================================
+GOOGLE_CLIENT_ID=your_google_client_id_here
+GOOGLE_CLIENT_SECRET=your_google_client_secret_here
+
+# ===========================================
+# SESSION MANAGEMENT
+# ===========================================
+SESSION_SECRET_KEY=your_very_secure_session_secret_key_here_minimum_32_characters
+
+# ===========================================
+# QDRANT CONFIGURATION
+# ===========================================
+QDRANT_HOST=qdrant
+QDRANT_PORT=6333
+QDRANT_GRPC_PORT=6334
+
+# ===========================================
+# ML/AI CONFIGURATION
+# ===========================================
+ML_DEVICE=cpu
+USE_API_LLM=true
+ML_MODEL_PATH=/code/models
+
+# ===========================================
+# CELERY CONFIGURATION
+# ===========================================
+CELERY_BROKER_URL=redis://redis:6379/1
+CELERY_RESULT_BACKEND=redis://redis:6379/2
+
+# ===========================================
+# ENVIRONMENT
+# ===========================================
+APP_ENV=production
+PROJECT_NAME=Synapse Project
+API_V1_STR=/api/v1
+
+# ===========================================
+# HUGGING FACE CACHE
+# ===========================================
+HF_HOME=/hf_cache
+
+# ===========================================
+# NLTK DATA
+# ===========================================
+NLTK_DATA=/code/nltk_data
+
+# ===========================================
+# PYTORCH CONFIGURATION
+# ===========================================
+PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+TOKENIZERS_PARALLELISM=false
