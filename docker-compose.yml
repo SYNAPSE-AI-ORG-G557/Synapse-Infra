@@ -40,9 +40,6 @@ services:
     environment:
       - TRANSFORMERS_CACHE=/hf_cache
       - HF_HOME=/hf_cache
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - NOTION_TOKEN=${NOTION_TOKEN}
 
   # 🔹 NEW: Flower Monitoring Dashboard 🔹
   flower:
@@ -92,9 +89,6 @@ services:
       - PYTHONPATH=/code
       - GIT_PYTHON_REFRESH=quiet
       - NLTK_DATA=/code/nltk_data
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - NOTION_TOKEN=${NOTION_TOKEN}
   # 🔹 CONFIRMED: This worker is correctly configured for the 'gpu' queue.
   # Uncomment this block when you have a GPU environment.
   # worker-gpu:
