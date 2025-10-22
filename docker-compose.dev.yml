@@ -1,4 +1,4 @@
-version: "3.9"
+# version: "3.9"  # Removed obsolete version field
 
 services:
   # -------------------- FRONTEND --------------------
@@ -22,9 +22,9 @@ services:
       dockerfile: Dockerfile.dev
     volumes:
       - ../Synapse-Backend:/code
-      - ../Synapse-MCP/mcp-chatbot:/app/mcp-chatbot
-      - ../Synapse-MCP/mcp-chatbot/servers_config.json:/app/servers_config.json
-      - ../Synapse-MCP/mcp-chatbot/test.db:/app/test.db
+      - ../mcp-chatbot:/app/mcp-chatbot
+      - ../mcp-chatbot/servers_config.json:/app/servers_config.json
+      - ../mcp-chatbot/test.db:/app/test.db
       - ./images:/app/images
     ports:
       - "8000:8000"
@@ -47,7 +47,7 @@ services:
   # 🔹 NEW: Flower Monitoring Dashboard 🔹
   flower:
     build:
-      context: ../Synapse-Worker
+      context: ../Synapse-worker
       dockerfile: Dockerfile.dev
     container_name: synapse-flower
     command: celery -A src.worker.app flower --address=0.0.0.0 --port=5555
@@ -64,17 +64,17 @@ services:
 
   worker-cpu:
     build:
-      context: ../Synapse-Worker
+      context: ../Synapse-worker
       dockerfile: Dockerfile.dev
     container_name: synapse-worker-cpu
     # This single worker listens to both queues, separated by a comma
-    command: sh -c "celery -A src.worker.app worker -l info -Q cpu_light,cpu_heavy -c 1"
+    command: sh -c "celery -A src.worker.app worker -l info -Q cpu_light,cpu_heavy -c 1 --max-memory-per-child=2000000"
     volumes:
-      - ../Synapse-Worker:/code
+      - ../Synapse-worker:/code
       - ./hf_cache:/hf_cache
-      - ../Synapse-MCP/mcp-chatbot:/app/mcp-chatbot
-      - ../Synapse-MCP/mcp-chatbot/servers_config.json:/app/servers_config.json
-      - ../Synapse-MCP/mcp-chatbot/test.db:/app/test.db
+      - ../mcp-chatbot:/app/mcp-chatbot
+      - ../mcp-chatbot/servers_config.json:/app/servers_config.json
+      - ../mcp-chatbot/test.db:/app/test.db
       - ./images:/app/images
     env_file:
       - ./.env
@@ -95,6 +95,14 @@ services:
       - GROQ_API_KEY=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
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - NOTION_TOKEN=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
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+      - TOKENIZERS_PARALLELISM=false
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+        reservations:
+          memory: 2G
   # 🔹 CONFIRMED: This worker is correctly configured for the 'gpu' queue.
   # Uncomment this block when you have a GPU environment.
   # worker-gpu:
